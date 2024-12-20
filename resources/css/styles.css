@@ -1,0 +1,76 @@
+/* styles.css */
+
+/* Body Styling */
+body {
+    background-color: #fff;
+    font-family: Arial, sans-serif;
+}
+
+/* Navbar */
+.navbar {
+    background-color: #f8f9fa; /* Warna latar belakang navbar */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-brand {
+    font-weight: bold;
+    color: #333;
+}
+
+.navbar-nav .nav-link {
+    color: #333;
+    font-weight: bold;
+    margin-right: 15px;
+}
+
+.navbar-nav .nav-link:hover {
+    color: #007bff;
+}
+
+/* Main Content */
+.container {
+    padding: 50px;
+}
+
+h1 {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 30px;
+}
+
+.card {
+    background-color: #e9ecef;
+    margin: 15px;
+    border-radius: 15px;
+}
+
+.card-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+/* Color for Completed and Pending Orders */
+.card.bg-success {
+    background-color: #28a745 !important;
+}
+
+.card.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.social-icons img {
+    width: 40px;
+    height: 40px;
+    margin: 0 10px;
+}
+
+/* Footer */
+footer {
+    background-color: #f8f9fa;
+    padding: 20px 0;
+}
+
+footer p {
+    margin-bottom: 10px;
+    font-weight: bold;
+}

@@ -5,14 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\DataPsAgustusKujangSql;
 use App\Models\SalesCodes;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function dashboard(): JsonResponse
+    public function dashboard(Request $request): JsonResponse
     {
         try {
+            // Mendapatkan filter tanggal dari request
+            $startDate = $request->query('start_date'); // Format: YYYY-MM-DD
+            $endDate = $request->query('end_date');     // Format: YYYY-MM-DD
+
             // Fetching counts and recent records
-            $salesData = $this->getSalesData();
+            $salesData = $this->getSalesData($startDate, $endDate);
             $recentData = $this->getRecentData();
 
             // Return a JSON response
@@ -22,13 +27,22 @@ class DashboardController extends Controller
         }
     }
 
-    private function getSalesData(): array
+    private function getSalesData(?string $startDate, ?string $endDate): array
     {
+        $salesCodesQuery = SalesCodes::query();
+        $ordersQuery = DataPsAgustusKujangSql::query();
+
+        // Filter berdasarkan created_at untuk sales codes
+        if ($startDate && $endDate) {
+            $salesCodesQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $ordersQuery->whereBetween('TGL_PS', [$startDate, $endDate]);
+        }
+
         return [
-            'totalSalesCodes' => SalesCodes::count(),
-            'totalOrders' => DataPsAgustusKujangSql::count(),
-            'completedOrders' => DataPsAgustusKujangSql::where('STATUS_MESSAGE', 'completed')->count(),
-            'pendingOrders' => DataPsAgustusKujangSql::where('STATUS_MESSAGE', 'pending')->count(),
+            'totalSalesCodes' => $salesCodesQuery->count(),
+            'totalOrders' => $ordersQuery->count(),
+            'completedOrders' => $ordersQuery->where('STATUS_MESSAGE', 'completed')->count(),
+            'pendingOrders' => $ordersQuery->where('STATUS_MESSAGE', 'pending')->count(),
         ];
     }
 

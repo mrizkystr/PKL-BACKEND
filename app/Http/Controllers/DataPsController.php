@@ -573,7 +573,7 @@ class DataPsController extends Controller
             $monthInput = $request->query('month', now()->month);
             $month = is_numeric($monthInput) ? (int)$monthInput : $this->convertMonthToNumber($monthInput);
             $year = (int)$request->query('year', now()->year);
-            $viewType = $request->query('view_type', 'table'); // Default "table"
+            $viewType = $request->query('view_type', 'table');
 
             if (!$month) {
                 return response()->json(['success' => false, 'message' => 'Invalid month input'], 400);
@@ -586,8 +586,13 @@ class DataPsController extends Controller
             $currentMonthData = $this->fetchMonthlyData($month, $year);
             $previousMonthData = $this->fetchMonthlyData($previousMonth, $previousYear);
             $targetData = $this->fetchTargetGrowth($month, $year);
-            $targetData['target_growth'] = $targetData['target_growth'] ?? 0; // Set nilai default jika target_growth tidak ada
-            $targetData['target_rkap'] = $targetData['target_rkap'] ?? 0; // Set nilai default jika target_rkap tidak ada
+
+            // Debug log untuk target data
+            Log::info('Raw Target Data:', $targetData);
+
+            // Set nilai default untuk target
+            $targetGrowth = $targetData['target_growth'] ?? 0;
+            $targetRkap = $targetData['target_rkap'] ?? 0;
 
             $currentMonthName = Carbon::createFromDate($year, $month, 1)->translatedFormat('F');
             $previousMonthName = Carbon::createFromDate($previousYear, $previousMonth, 1)->translatedFormat('F');
@@ -595,29 +600,52 @@ class DataPsController extends Controller
             $currentMonthData = $this->processMonthlyData($currentMonthData, $month, $year);
             $previousMonthData = $this->processMonthlyData($previousMonthData, $previousMonth, $previousYear);
 
-            // Hitung total realisasi dan performance data
+            // Hitung total realisasi
             $currentTotal = collect($currentMonthData)->sum('ps_harian');
             $previousTotal = collect($previousMonthData)->sum('ps_harian');
-            $daysElapsed = now()->day; // Hari berjalan
+            $daysElapsed = now()->day;
 
+            // Debug log untuk nilai-nilai perhitungan
+            Log::info('Calculation Values:', [
+                'currentTotal' => $currentTotal,
+                'targetGrowth' => $targetGrowth,
+                'targetRkap' => $targetRkap
+            ]);
+
+            // Perhitungan Daily Target Average
             $dailyTargetAvg = $daysElapsed > 0 ? round($currentTotal / $daysElapsed, 2) : 0;
-            $achievementGrowth = $targetData['target_growth'] > 0 ? round(($currentTotal / $targetData['target_growth']) * 100, 2) : 0;
-            $achievementRkap = $targetData['target_rkap'] > 0 ? round(($currentTotal / $targetData['target_rkap']) * 100, 2) : 0;
 
-            // Response berdasarkan View Type
+            // Perhitungan Achievement
+            $achievementTargetGrowth = 0;
+            $achievementTargetRkap = 0;
+
+            if ($targetGrowth > 0 && $currentTotal > 0) {
+                $achievementTargetGrowth = round(($currentTotal / $targetGrowth) * 100, 2);
+            }
+
+            if ($targetRkap > 0 && $currentTotal > 0) {
+                $achievementTargetRkap = round(($currentTotal / $targetRkap) * 100, 2);
+            }
+
+            // Debug log untuk hasil achievement
+            Log::info('Achievement Results:', [
+                'achievementTargetGrowth' => $achievementTargetGrowth,
+                'achievementTargetRkap' => $achievementTargetRkap
+            ]);
+
             $responseData = [
                 'success' => true,
                 'message' => 'Target tracking data retrieved successfully',
                 'performance_data' => [
                     'daily_target_average' => $dailyTargetAvg,
                     'mtd_realization' => $currentTotal,
-                    'achievement_target_growth' => $achievementGrowth,
-                    'achievement_target_rkap' => $achievementRkap
+                    'achievement_target_growth' => $achievementTargetGrowth > 0 ? $achievementTargetGrowth : null,
+                    'achievement_target_rkap' => $achievementTargetRkap > 0 ? $achievementTargetRkap : null
                 ],
                 'current_month' => [
                     'month' => $currentMonthName,
                     'year' => $year,
-                    'data' => $viewType === 'table' ? $currentMonthData : [], // Tabel atau kosong jika chart
+                    'data' => $viewType === 'table' ? $currentMonthData : [],
                     'total_mtd' => $currentTotal
                 ],
                 'previous_month' => [
@@ -632,17 +660,23 @@ class DataPsController extends Controller
                 'view_type' => $viewType
             ];
 
+            // Debug log untuk final response
+            Log::info('Final Response:', $responseData);
+
             return response()->json($responseData, 200);
         } catch (\Exception $e) {
-            Log::error('Error in Target Tracking and Sales Chart', ['message' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'Failed to retrieve data', 'error' => $e->getMessage()], 500);
+            Log::error('Error in Target Tracking and Sales Chart', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve data',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
-
-    /**
-     * Mengonversi nama bulan bahasa Indonesia menjadi angka.
-     */
     private function convertMonthToNumber($monthName)
     {
         $months = [
@@ -663,9 +697,6 @@ class DataPsController extends Controller
         return $months[strtolower($monthName)] ?? null;
     }
 
-    /**
-     * Mengambil data PS berdasarkan bulan dan tahun.
-     */
     private function fetchMonthlyData($month, $year)
     {
         return DataPsAgustusKujangSql::query()
@@ -681,49 +712,23 @@ class DataPsController extends Controller
             ->get();
     }
 
-    /**
-     * Mengambil target growth dan RKAP berdasarkan bulan dan tahun.
-     */
     private function fetchTargetGrowth($month, $year)
     {
-        // Validasi dan format nama bulan
-        $monthFormatted = ucwords(strtolower($month));
+        $monthName = Carbon::createFromFormat('m', $month)->translatedFormat('F');
 
-        // Ambil data target growth
-        $target = TargetGrowth::whereRaw('LOWER(month) = ?', [strtolower($monthFormatted)])
+        $target = TargetGrowth::whereRaw('LOWER(month) = ?', [strtolower($monthName)])
             ->where('year', $year)
             ->first();
 
-        // Return data dengan nilai default jika tidak ditemukan
         return [
-            'month' => $monthFormatted,
+            'month' => $monthName,
             'year' => $year,
-            'target_growth' => $target ? $target->target_growth : 0,
-            'target_rkap' => $target ? $target->target_rkap : 0,
+            'target_growth' => $target?->target_growth ?? 0,
+            'target_rkap' => $target?->target_rkap ?? 0,
         ];
     }
 
 
-    /**
-     * Menghasilkan data kosong jika tidak ada data.
-     */
-    private function generateEmptyData($month, $year)
-    {
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-
-        return collect(range(1, $daysInMonth))->map(function ($day) use ($month, $year) {
-            return [
-                'date' => Carbon::create($year, $month, $day)->format('Y-m-d'),
-                'day' => $day,
-                'ps_harian' => 0,
-                'realisasi_mtd' => 0,
-            ];
-        });
-    }
-
-    /**
-     * Memproses data bulanan untuk dihitung realisasi MTD.
-     */
     private function processMonthlyData($monthlyData, $month, $year)
     {
         $cumulativeTotal = 0;
@@ -747,9 +752,6 @@ class DataPsController extends Controller
         });
     }
 
-    /**
-     * Menentukan status 'gimmick' berdasarkan ps_harian dan hari dalam seminggu.
-     */
     private function calculateGimmick($ps_harian, $dayOfWeek)
     {
         $threshold = match ($dayOfWeek) {
@@ -759,7 +761,7 @@ class DataPsController extends Controller
             default => 7,
         };
 
-        return $ps_harian >= $threshold ? 'achieve' : 'not achieve';
+        return $ps_harian >= $threshold ? 'Achieve' : 'Not Achieve';
     }
 
 

@@ -209,7 +209,15 @@ class DataPsController extends Controller
 
     public function analysisByMonth(Request $request)
     {
-        $monthAnalysis = DataPsAgustusKujangSql::select('Bulan_PS', 'STO', DB::raw('count(*) as total'))
+        // Query untuk mengambil data dengan atau tanpa filter bulan
+        $query = DataPsAgustusKujangSql::select('Bulan_PS', 'STO', DB::raw('count(*) as total'));
+
+        // Tambahkan filter bulan jika parameter 'bulan' ada
+        if ($request->has('bulan') && !empty($request->bulan)) {
+            $query->where('Bulan_PS', $request->bulan);
+        }
+
+        $monthAnalysis = $query
             ->groupBy('Bulan_PS', 'STO')
             ->orderBy('Bulan_PS', 'asc')
             ->orderBy('STO', 'asc')
@@ -217,6 +225,7 @@ class DataPsController extends Controller
 
         return $this->successResponse(['month_analysis' => $monthAnalysis]);
     }
+
 
     public function analysisByCode(Request $request)
     {

@@ -153,6 +153,30 @@ class UserController extends Controller
     }
 
     /**
+     * Delete a user.
+     *
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        // Find user by ID
+        $user = User::find($id);
+
+        if (!$user) {
+            return $this->errorResponse('User not found.', 404);
+        }
+
+        try {
+            $user->delete();
+            return $this->successResponse('User successfully deleted!');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to delete user.', 500, $e->getMessage());
+        }
+    }
+
+
+    /**
      * Import users from an Excel file.
      *
      * @param Request $request

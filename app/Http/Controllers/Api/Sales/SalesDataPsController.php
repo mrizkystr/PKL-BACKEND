@@ -235,11 +235,19 @@ class SalesDataPsController extends Controller
 
         $codeAnalysis = $this->buildCodeAnalysisQuery($selectedSto, $selectedMonth);
 
-        $organizedData = $this->organizeCodeAnalysisData($codeAnalysis);
+        $organizedData = $this->organizeCodeAnalysisData($codeAnalysis->items()); // Mengambil item dari pagination
 
         return $this->successResponse([
             'analysis_per_code' => array_values($organizedData),
             'bulan_list' => $bulanPsList,
+            'pagination' => [
+                'current_page' => $codeAnalysis->currentPage(),
+                'total_pages' => $codeAnalysis->lastPage(),
+                'total_items' => $codeAnalysis->total(),
+                'per_page' => $codeAnalysis->perPage(),
+                'next_page_url' => $codeAnalysis->nextPageUrl(),
+                'prev_page_url' => $codeAnalysis->previousPageUrl(),
+            ],
         ]);
     }
 
@@ -251,12 +259,12 @@ class SalesDataPsController extends Controller
             'data_ps_agustus_kujang_sql.Kode_sales',
             'data_ps_agustus_kujang_sql.Nama_SA',
             DB::raw("
-            CASE 
-                WHEN data_ps_agustus_kujang_sql.Bulan_PS = 'Agustus' THEN sales_codes.kode_agen
-                WHEN data_ps_agustus_kujang_sql.Bulan_PS = 'September' THEN sales_codes.kode_baru
-                ELSE NULL
-            END as kode_selected
-        "),
+        CASE 
+            WHEN data_ps_agustus_kujang_sql.Bulan_PS = 'Agustus' THEN sales_codes.kode_agen
+            WHEN data_ps_agustus_kujang_sql.Bulan_PS = 'September' THEN sales_codes.kode_baru
+            ELSE NULL
+        END as kode_selected
+    "),
             DB::raw("COUNT(DISTINCT data_ps_agustus_kujang_sql.id) as total")
         )
             ->leftJoin('sales_codes', function ($join) {
@@ -287,7 +295,7 @@ class SalesDataPsController extends Controller
             ->orderBy('data_ps_agustus_kujang_sql.Bulan_PS', 'asc')
             ->orderBy('data_ps_agustus_kujang_sql.STO', 'asc')
             ->orderBy('kode_selected', 'asc')
-            ->get();
+            ->paginate(10); // Pagination dengan 10 item per halaman
     }
 
     /*************  ✨ Codeium Command ⭐  *************/
@@ -936,6 +944,11 @@ class SalesDataPsController extends Controller
         // return redirect()->route('data-ps.index')->with('success', 'Data PS deleted successfully.');
     }
 
+    public function destroyAll()
+    {
+        DataPsAgustusKujangSql::truncate();
+        return response()->json(['message' => 'Semua data PS telah dihapus dan ID telah direset.'], 200);
+    }
 
     public function importExcel(Request $request)
     {

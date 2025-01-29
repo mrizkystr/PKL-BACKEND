@@ -63,6 +63,9 @@ Route::middleware(['auth:api'])->prefix('data-ps')->group(function () {
         Route::delete('/{id}', [DataPsController::class, 'destroy']);
         Route::post('/import', [DataPsController::class, 'importExcel']);
         Route::post('/set-target', [DataPsController::class, 'saveTargetGrowth']);
+
+        // Route untuk menghapus semua data
+        Route::delete('/', [DataPsController::class, 'destroyAll']);
     });
 
     // Routes with different access levels
@@ -98,6 +101,7 @@ Route::middleware(['auth:api'])->prefix('sales-codes')->group(function () {
         Route::post('/store', [SalesCodesController::class, 'store']);
         Route::put('/update/{id}', [SalesCodesController::class, 'update']);
         Route::delete('/{id}', [SalesCodesController::class, 'destroy']);
+        Route::delete('/', [SalesCodesController::class, 'destroyAll']);
         Route::post('/import', [SalesCodesController::class, 'importExcel']);
     });
 });

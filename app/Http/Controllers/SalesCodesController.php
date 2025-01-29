@@ -97,6 +97,15 @@ class SalesCodesController extends Controller
         ]);
     }
 
+    public function destroyAll(): JsonResponse
+    {
+        SalesCodes::truncate(); // Menghapus semua data dan mereset auto-increment
+        return response()->json([
+            'message' => 'All sales codes have been truncated successfully.'
+        ]);
+    }
+
+
     public function importExcel(SalesCodeImportRequest $request): JsonResponse
     {
         Log::info('Starting file upload process...');

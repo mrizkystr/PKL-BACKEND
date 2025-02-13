@@ -171,12 +171,12 @@ class UserDataPsController extends Controller
     public function analysisBySto(Request $request)
     {
         $selectedSto = $request->input('sto', 'all');
-        $selectedMonth = $request->input('month', null); // Get month filter
+        $selectedYear = $request->input('year', date('Y')); // Default ke tahun sekarang
         $viewType = $request->input('view_type', 'table');
 
         $stoList = DataPsAgustusKujangSql::select('STO')->distinct()->orderBy('STO', 'asc')->get();
 
-        $query = $this->buildStoAnalysisQuery($selectedSto, $selectedMonth); // ```php
+        $query = $this->buildStoAnalysisQuery($selectedSto, $selectedYear);
         $stoAnalysis = $query->get();
 
         if ($stoAnalysis->isEmpty()) {
@@ -187,31 +187,32 @@ class UserDataPsController extends Controller
             'stoAnalysis' => $stoAnalysis,
             'stoList' => $stoList,
             'selectedSto' => $selectedSto,
+            'selectedYear' => $selectedYear,
             'viewType' => $viewType,
         ]);
     }
 
-    private function buildStoAnalysisQuery($selectedSto, $selectedMonth = null)
+    private function buildStoAnalysisQuery($selectedSto, $selectedYear)
     {
         $query = DataPsAgustusKujangSql::select('STO');
 
-        foreach (self::MONTHS as $month) {
-            $query->addSelect(DB::raw("SUM(CASE WHEN Bulan_PS = '{$month}' THEN 1 ELSE 0 END) AS total_{$month}"));
+        for ($month = 1; $month <= 12; $month++) {
+            $query->addSelect(DB::raw(
+                "SUM(CASE WHEN YEAR(TGL_PS) = {$selectedYear} AND MONTH(TGL_PS) = {$month} THEN 1 ELSE 0 END) AS total_{$month}"
+            ));
         }
 
-        $query->addSelect(DB::raw('SUM(1) AS grand_total'))
-            ->groupBy('STO');
+        $query->addSelect(DB::raw(
+            "SUM(CASE WHEN YEAR(TGL_PS) = {$selectedYear} THEN 1 ELSE 0 END) AS grand_total"
+        ))->groupBy('STO');
 
         if ($selectedSto !== 'all') {
             $query->where('STO', $selectedSto);
         }
 
-        if ($selectedMonth) {
-            $query->where('Bulan_PS', $selectedMonth);
-        }
-
         return $query;
     }
+
 
     public function analysisByMonth(Request $request)
     {

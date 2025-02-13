@@ -25,8 +25,10 @@ Route::prefix('admin')->group(function () {
         Route::post('/users/store', [UserController::class, 'store']); // Register a new user
         Route::post('/users/import', [UserController::class, 'import']); // Import users from Excel
         Route::put('/users/update/{id}', [UserController::class, 'update']); // Update an existing user
+        Route::delete('/users/delete/{id}', [UserController::class, 'destroy']); // Delete a user
     });
 });
+
 
 Route::get('landing-page', [LandingPageController::class, 'index']);
 

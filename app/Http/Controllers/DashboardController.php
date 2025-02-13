@@ -6,6 +6,7 @@ use App\Models\DataPsAgustusKujangSql;
 use App\Models\SalesCodes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -19,11 +20,12 @@ class DashboardController extends Controller
             // Fetching counts and recent records
             $salesData = $this->getSalesData($startDate, $endDate);
             $recentData = $this->getRecentData();
+            $chartData = $this->getChartData(); // Tambahan untuk data grafik
 
             // Return a JSON response
-            return response()->json(array_merge($salesData, $recentData), 200);
+            return response()->json(array_merge($salesData, $recentData, $chartData), 200);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500); // Handle errors gracefully
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
@@ -32,7 +34,6 @@ class DashboardController extends Controller
         $salesCodesQuery = SalesCodes::query();
         $ordersQuery = DataPsAgustusKujangSql::query();
 
-        // Filter berdasarkan created_at untuk sales codes
         if ($startDate && $endDate) {
             $salesCodesQuery->whereBetween('created_at', [$startDate, $endDate]);
             $ordersQuery->whereBetween('TGL_PS', [$startDate, $endDate]);
@@ -67,14 +68,65 @@ class DashboardController extends Controller
             ->latest()
             ->take($limit)
             ->get()
-            ->toArray(); // Convert the result to an array
+            ->toArray();
     }
 
     private function getRecentOrders(int $limit = 5): array
     {
         return DataPsAgustusKujangSql::orderBy('ORDER_ID', 'desc')
             ->take($limit)
-            ->get(['ORDER_ID', 'CUSTOMER_NAME', 'ORDER_DATE']) // Adjust columns to your database structure
-            ->toArray(); // Convert the result to an array
+            ->get(['ORDER_ID', 'CUSTOMER_NAME', 'ORDER_DATE'])
+            ->toArray();
+    }
+
+    // Method baru untuk mengambil data grafik
+    private function getChartData(): array
+    {
+        // Data untuk grafik batang - Jumlah order per bulan
+        $barChartData = DataPsAgustusKujangSql::select(
+            DB::raw('COALESCE(Bulan_PS, MONTH(TGL_PS)) as bulan'),
+            DB::raw('COUNT(*) as jumlah_order')
+        )
+            ->groupBy(DB::raw('COALESCE(Bulan_PS, MONTH(TGL_PS))'))
+            ->orderBy('bulan')
+            ->get();
+
+        // Data untuk grafik pie - Status pesanan
+        $pieChartData = DataPsAgustusKujangSql::select(
+            'STATUS_MESSAGE',
+            DB::raw('COUNT(*) as jumlah')
+        )
+            ->groupBy('STATUS_MESSAGE')
+            ->get();
+
+        // Format data untuk grafik batang
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        $formattedBarData = [
+            'labels' => $barChartData->map(function ($item) use ($monthNames) {
+                return $monthNames[$item->bulan] ?? "Bulan {$item->bulan}";
+            })->values(),
+            'datasets' => [[
+                'label' => 'Jumlah Order per Bulan',
+                'data' => $barChartData->pluck('jumlah_order')->values(),
+            ]]
+        ];
+
+        // Format data untuk grafik pie
+        $formattedPieData = [
+            'labels' => $pieChartData->pluck('STATUS_MESSAGE'),
+            'datasets' => [[
+                'data' => $pieChartData->pluck('jumlah'),
+            ]]
+        ];
+
+        return [
+            'barChartData' => $formattedBarData,
+            'pieChartData' => $formattedPieData
+        ];
     }
 }
